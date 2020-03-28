@@ -1,0 +1,247 @@
+_INT	equ	$06000000|INT
+_H_INT	equ	$06000000|H_INT
+_V_INT	equ	$06000000|V_INT
+* *****************	MASTER VBR		*********************************
+	dc.l	$06000240		; Power-on reset PC
+	dc.l	$06040000		; Power-on reset SP
+	dc.l	$06000240		; Manual reset PC
+	dc.l	$06040000		; Manual reset SP
+	dc.l	_INT			; General illegal instruction
+	dc.l	_INT			; Reserved
+	dc.l	_INT			; Slot illegal instruction
+	dc.l	_INT			; Reserved
+	dc.l	_INT			; Reserved
+	dc.l	_INT			; CPU address error
+	dc.l	_INT			; DMA address error
+	dc.l	_INT			; Interrupt NMI
+	dc.l	_INT			; Interrupt
+
+*	Reserved - Vector 13-31
+	dc.l	_INT,_INT,_INT,_INT,_INT,_INT,_INT,_INT
+	dc.l	_INT,_INT,_INT,_INT,_INT,_INT,_INT,_INT
+	dc.l	_INT,_INT,_INT
+
+*	Trap instruction (user vector) - Vector 32-63
+	dc.l	_INT,_INT,_INT,_INT,_INT,_INT,_INT,_INT
+	dc.l	_INT,_INT,_INT,_INT,_INT,_INT,_INT,_INT
+	dc.l	_INT,_INT,_INT,_INT,_INT,_INT,_INT,_INT
+	dc.l	_INT,_INT,_INT,_INT,_INT,_INT,_INT,_INT
+
+*	IRL - Vector 64-71
+	dc.l	_INT			; IRL1
+	dc.l	_INT			; IRL2/3
+	dc.l	_INT			; IRL4/5
+	dc.l	_INT			; IRL6/7	PWM Int
+	dc.l	_INT			; IRL8/9	CMD Int
+	dc.l	_H_INT			; IRL10/11	H Int
+	dc.l	_V_INT			; IRL12/13	V Int
+	dc.l	_INT			; IRL14/15	VRes Int
+
+
+*	ORG	$06000120
+* *****************	SLAVE VBR		*********************************
+	dc.l	$06000240		; Power-on reset PC
+	dc.l	$0603F800		; Power-on reset SP
+	dc.l	$06000240		; Manual reset PC
+	dc.l	$0603F800		; Manual reset SP
+	dc.l	_INT			; General illegal instruction
+	dc.l	_INT			; Reserved
+	dc.l	_INT			; Slot illegal instruction
+	dc.l	_INT			; Reserved
+	dc.l	_INT			; Reserved
+	dc.l	_INT			; CPU address error
+	dc.l	_INT			; DMA address error
+	dc.l	_INT			; Interrupt NMI
+	dc.l	_INT			; Interrupt
+
+*	Reserved - Vector 13-31
+	dc.l	_INT,_INT,_INT,_INT,_INT,_INT,_INT,_INT
+	dc.l	_INT,_INT,_INT,_INT,_INT,_INT,_INT,_INT
+	dc.l	_INT,_INT,_INT
+
+*	Trap instruction (user vector) - Vector 32-63
+	dc.l	_INT,_INT,_INT,_INT,_INT,_INT,_INT,_INT
+	dc.l	_INT,_INT,_INT,_INT,_INT,_INT,_INT,_INT
+	dc.l	_INT,_INT,_INT,_INT,_INT,_INT,_INT,_INT
+	dc.l	_INT,_INT,_INT,_INT,_INT,_INT,_INT,_INT
+
+*	IRL - Vector 64-71
+	dc.l	_INT			; IRL1
+	dc.l	_INT			; IRL2/3
+	dc.l	_INT			; IRL4/5
+	dc.l	_INT			; IRL6/7	PWM Int
+	dc.l	_INT			; IRL8/9	CMD Int
+	dc.l	_INT			; IRL10/11	H Int
+	dc.l	_INT			; IRL12/13	V Int
+	dc.l	_INT			; IRL14/15	VRes Int
+
+
+* Common CPU Initialization	*************************************************
+
+* VBR = $0600 0000 for Master, $0600 0120 for Slave, in Cart
+* GBR = $2000 4000, in BootROM
+* Cache Init in BootROM
+
+	STC	VBR,R0
+	MOV.L	@(4,R0),R15	; Set SP
+
+* Restrictions Concerning SH2 Interrupt (32X Hardware Manual)
+	MOV	#$84,R1
+	SHLL2	R1		; R1 = TIER
+	MOV	#1,R0		; TIER : The bit 0 write value should always be 1.
+	MOV.B	R0,@R1		; Clear TIER
+	MOV	#$E2,R0		; TOCR : OCRA register select, 1 output on compare match A
+	EXTU.B	R0,R0
+	MOV.B	R0,@(7,R1)
+	MOV	#1,R0
+	MOV.W	R0,@(4,R1)	; OCRA
+	MOV	#0,R0
+	MOV.B	R0,@(6,R1)	; TCR
+	MOV	#1,R0
+	MOV.B	R0,@(1,R1)	; FTCSR : FRC cleared on compare match A
+	MOV	#0,R0
+	MOV.W	R0,@(2,R1)	; FRC
+
+
+
+* Init DMAC
+	MOV	#0,R0
+	MOV	#$B0,R1		; DMAOR = FFFF FFB0
+	MOV.L	R0,@R1		; Disable DMA
+
+	MOV.L	#0,R0
+	MOV	#$80,R1		; DMA Channel 0
+	MOV.L	R0,@R1
+	MOV.L	R0,@(4,R1)
+	MOV.L	R0,@(8,R1)
+	MOV.L	R0,@($C,R1)
+	MOV	#$90,R1		; DMA Channel 1
+	MOV.L	R0,@R1
+	MOV.L	R0,@(4,R1)
+	MOV.L	R0,@(8,R1)
+	MOV.L	R0,@($C,R1)
+
+	MOV	#1,R0
+	MOV	#$B0,R1
+	MOV.L	R0,@R1		; DMAOR : DMA transfers enabled on all channels
+
+	MOV	#$20,R0
+	LDC	R0,SR		; Enable SH2 to receive Interrupts
+
+
+* Jump to their own Program
+	STC	VBR,R0
+	AND	#$7F,R0
+	CMP/EQ	#0,R0
+	BT	masterInit
+	NOP
+	BRA	slaveInit
+	NOP
+
+
+
+masterInit:
+
+	MOV	#0,R0
+waitForFMSet:
+	TST.B	#$80,@(R0,GBR)		; T = (@IMR & $80) == 0
+	BT	waitForFMSet
+
+configureInterruptMaskRegister:
+	MOV	#1,R0
+	OR.B	#$8,@(R0,GBR)		; V_INT
+
+configureBitmapModeRegister:
+	MOV	#1,R0
+	SWAP.B	R0,R0
+	OR.B	#1,@(R0,GBR)		; Packed Pixel Mode
+
+	BSR	loadPalette
+	NOP
+
+	MOV	#0,R0
+	MOV.L	R0,@($20,GBR)		; Clear Master Port
+
+	BRA	masterMain
+	NOP
+
+loadPalette:
+	MOVA	paletteEntries,R0
+	MOV	R0,R1			; R1 = Source (ascending)
+	MOV.W	FBCROffset,R0		; R0 = FBCR offset
+	MOV.L	palette,R2		; R2 = Destination (descending)
+	MOV	#2,R3			; R3 = counter
+
+loadPaletteLoop:
+	MOV.W	@R1+,R4			; R4 = temp
+waitForPEN:
+	TST.B	#$20,@(R0,GBR)		; T = (@FBCR & $20) == 0
+	BF	waitForPEN
+	MOV.W	R4,@-R2
+	DT	R3
+	BF	loadPaletteLoop
+
+	RTS
+	NOP
+	.align	4
+palette:	DC.L	$20004204
+paletteEntries:	DC.W	$7FFF,$0000
+FBCROffset:	DC.W	$010A
+
+
+slaveInit:
+	MOV	#1,R0
+	AND.B	#0,@(R0,GBR)		; Slave issues no interrupt (32X Hardware Manual §1.5)
+
+	MOV	#0,R0
+	MOV.L	R0,@($24,GBR)	; Clear Slave Port
+
+waitForMasterCleared:
+	MOV.W	@($20,GBR),R0
+	CMP/EQ	#0,R0
+	BF	waitForMasterCleared
+
+	BRA	slaveMain
+	NOP
+
+
+
+
+
+* Main Program			*************************************************
+masterMain:
+
+	BRA	masterMain
+	NOP
+
+
+
+slaveMain:
+
+	BRA	slaveMain
+	NOP
+
+	.align	4
+
+
+
+* *****************	INTERRUPTIONS	*****************************************
+INT:
+	RTE
+	NOP
+
+V_INT:
+	MOV.L	R0,@-R15
+
+	MOV	#0,R0
+	MOV.W	R0,@($16,GBR)	; Clear V interrupt. If not cleared, interrupt will no longer occur.
+
+	MOV.L	@R15+,R0
+	RTE
+	NOP
+
+H_INT:
+	RTE
+	NOP
+
+	.align	4	; SH2 code MUST be modulo 4
